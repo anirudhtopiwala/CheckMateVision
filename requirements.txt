@@ -1,0 +1,17 @@
+torch>=2.1.0
+torchvision>=0.16.0
+transformers>=4.40.0
+albumentations>=1.3.1
+opencv-python
+pycocotools
+numpy
+Pillow
+tqdm
+requests
+scikit-image
+accelerate
+matplotlib
+scipy
+click
+wget
+pandas
