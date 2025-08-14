@@ -15,10 +15,11 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 from transformers import DeformableDetrConfig, DeformableDetrForObjectDetection
 
-from dataset import (ChessPiecesDataset, collate_fn,
-                     convert_detr_predictions_to_coco)
-from visualization_utils import (setup_matplotlib_backend,
-                                 visualize_single_image_prediction)
+from dataset import ChessPiecesDataset, collate_fn, convert_detr_predictions_to_coco
+from visualization_utils import (
+    setup_matplotlib_backend,
+    visualize_single_image_prediction,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,14 @@ class DeformableDetrLightning(pl.LightningModule):
         )
         loss = outputs.loss
 
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log(
+            "train_loss",
+            loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+        )
 
         # Trigger visualization every N steps for training data
         if (self.global_step + 1) % self.visualize_every_n_steps == 0:
@@ -131,9 +139,32 @@ class DeformableDetrLightning(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         images, targets, pixel_masks = batch
 
-        outputs = self(
-            pixel_values=images.to(self.device),
-            pixel_mask=pixel_masks.to(self.device),
+        # Prepare labels for validation loss computation
+        labels = []
+        for t in targets:
+            labels.append(
+                {
+                    "class_labels": t["class_labels"].to(self.device),
+                    "boxes": t["normalized_boxes"].to(self.device),
+                }
+            )
+
+        with torch.no_grad():
+            outputs = self(
+                pixel_values=images.to(self.device),
+                pixel_mask=pixel_masks.to(self.device),
+                labels=labels,
+            )
+
+        # Compute and log validation loss
+        val_loss = outputs.loss
+        self.log(
+            "val_loss",
+            val_loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
         )
 
         # Trigger visualization every N steps for validation data (only for first batch)
