@@ -3,40 +3,16 @@ import os
 import random
 from typing import List
 
-import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 
 from dataset import ChessPiecesDataset
+from visualization_utils import setup_matplotlib_backend, draw_bbox
 
 random.seed(42)  # For reproducibility
-import matplotlib
-
-matplotlib.use("TkAgg")
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-def draw_bbox(
-    ax, image: np.array, boxes_xywh: List[List[float]], label_names: List[str]
-):
-    """Draw bounding boxes on the image."""
-    ax.imshow(image)
-    for (x, y, w, h), name in zip(boxes_xywh, label_names):
-        rect = patches.Rectangle(
-            (x, y), w, h, linewidth=1.5, edgecolor="lime", facecolor="none"
-        )
-        ax.add_patch(rect)
-        ax.text(
-            x,
-            y - 2,
-            name,
-            fontsize=8,
-            color="yellow",
-            bbox=dict(facecolor="black", alpha=0.5, pad=1),
-        )
-    ax.axis("off")
 
 
 def main():
@@ -66,6 +42,13 @@ def main():
         help="Split to visualize.",
     )
     args = parser.parse_args()
+
+    # Setup matplotlib backend
+    if args.save_dir:
+        setup_matplotlib_backend("Agg")  # Headless for saving
+    else:
+        setup_matplotlib_backend("TkAgg")  # Interactive for display
+
     ds = ChessPiecesDataset(dataset_root_dir=args.images_root, split=args.split)
     indices = random.sample(range(len(ds)), k=args.n)
 

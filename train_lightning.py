@@ -1,16 +1,24 @@
 import argparse
+import io
 import logging
 import os
+import traceback
 from datetime import datetime
 
+import matplotlib.pyplot as plt
 import pytorch_lightning as pl
 import torch
+import torchvision.transforms as transforms
+from PIL import Image
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 from transformers import DeformableDetrConfig, DeformableDetrForObjectDetection
 
-from dataset import ChessPiecesDataset, collate_fn, convert_detr_predictions_to_coco
+from dataset import (ChessPiecesDataset, collate_fn,
+                     convert_detr_predictions_to_coco)
+from visualization_utils import (setup_matplotlib_backend,
+                                 visualize_single_image_prediction)
 
 logger = logging.getLogger(__name__)
 
@@ -26,18 +34,27 @@ class DeformableDetrLightning(pl.LightningModule):
         warmup_iters: int = 1000,
         max_iters: int = None,
         pretrained: bool = True,
+        visualize_every_n_steps: int = 150,
     ):
         super().__init__()
         self.save_hyperparameters()
 
+        self.num_classes = num_classes + 1  # +1 for no-object class in COCO format
+
         # Initialize validation outputs storage
         self.validation_step_outputs = []
+
+        # Visualization parameters
+        self.visualize_every_n_steps = visualize_every_n_steps
+        self.visualization_confidence_threshold = (
+            0.1  # Confidence threshold for visualizations
+        )
 
         # Build model with updated queries and num_classes
         if pretrained:
             self.model = DeformableDetrForObjectDetection.from_pretrained(
                 "SenseTime/deformable-detr",
-                num_labels=num_classes,
+                num_labels=self.num_classes,
                 ignore_mismatched_sizes=True,
             )
             # Update number of queries
@@ -51,12 +68,11 @@ class DeformableDetrLightning(pl.LightningModule):
             )
         else:
             config = DeformableDetrConfig(
-                num_labels=num_classes,
+                num_labels=self.num_classes,
                 num_queries=num_queries,
             )
             self.model = DeformableDetrForObjectDetection(config)
 
-        self.num_classes = num_classes
         self.lr_backbone = lr_backbone
         self.lr = lr
         self.weight_decay = weight_decay
@@ -79,6 +95,7 @@ class DeformableDetrLightning(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         images, targets, pixel_masks = batch
+
         labels = []
         for t in targets:
             labels.append(
@@ -97,14 +114,38 @@ class DeformableDetrLightning(pl.LightningModule):
         loss = outputs.loss
 
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+
+        # Trigger visualization every N steps for training data
+        if (self.global_step + 1) % self.visualize_every_n_steps == 0:
+            self.visualize_predictions(
+                images=images,
+                targets=targets,
+                pixel_masks=pixel_masks,
+                batch_idx=0,
+                step=self.global_step,
+                mode="train",
+            )
+
         return loss
 
     def validation_step(self, batch, batch_idx):
         images, targets, pixel_masks = batch
+
         outputs = self(
             pixel_values=images.to(self.device),
             pixel_mask=pixel_masks.to(self.device),
         )
+
+        # Trigger visualization every N steps for validation data (only for first batch)
+        if batch_idx % self.visualize_every_n_steps == 0:
+            self.visualize_predictions(
+                images=images,
+                targets=targets,
+                pixel_masks=pixel_masks,
+                batch_idx=0,
+                step=batch_idx,
+                mode="val",
+            )
 
         # Store predictions for epoch-end evaluation
         logits = outputs.logits
@@ -154,6 +195,91 @@ class DeformableDetrLightning(pl.LightningModule):
 
         # Clear the outputs for next epoch
         self.validation_step_outputs.clear()
+
+    def visualize_predictions(
+        self, images, targets, pixel_masks, batch_idx, step, mode
+    ):
+        """Generate visualization of predictions vs ground truth and log to TensorBoard."""
+        try:
+            setup_matplotlib_backend("Agg")  # Use non-interactive backend
+            # Get model predictions
+            with torch.no_grad():
+                outputs = self(pixel_values=images, pixel_mask=pixel_masks)
+
+            # Process predictions for the single image
+            logits = outputs.logits
+            pred_boxes = outputs.pred_boxes
+            prob = logits.softmax(-1)[..., :-1]  # Remove no-object class
+            scores, labels = prob.max(-1)
+
+            # Process the single image
+            img_h, img_w = images.shape[-2], images.shape[-1]
+            boxes = pred_boxes[batch_idx]
+            scores_img = scores[batch_idx]
+            labels_img = labels[batch_idx]
+
+            # Convert DETR predictions to COCO format
+            coco_boxes = convert_detr_predictions_to_coco(boxes, img_w, img_h)
+
+            # Filter by confidence and prepare for visualization
+            pred_boxes_list = []
+            pred_scores_list = []
+            pred_labels_list = []
+
+            for box, score, label in zip(coco_boxes, scores_img, labels_img):
+                if score.item() >= self.visualization_confidence_threshold:
+                    pred_boxes_list.append(
+                        [box[0].item(), box[1].item(), box[2].item(), box[3].item()]
+                    )
+                    pred_scores_list.append(score.item())
+                    pred_labels_list.append(label.item())
+
+            predictions = {
+                "boxes": pred_boxes_list,
+                "scores": pred_scores_list,
+                "labels": pred_labels_list,
+            }
+
+            # Get category map from trainer's datamodule
+            category_map = self.trainer.datamodule.train_dataset.get_categories()
+            unnormalize_fn = self.trainer.datamodule.train_dataset.unnormalize
+
+            # Create visualization figure for single image
+            fig = visualize_single_image_prediction(
+                image=images[batch_idx],
+                target=targets[batch_idx],
+                predictions=predictions,
+                category_map=category_map,
+                unnormalize_fn=unnormalize_fn,
+                confidence_threshold=self.visualization_confidence_threshold,
+                title_prefix=f"Step {self.global_step} - ",
+            )
+
+            # Convert figure to image tensor for TensorBoard
+            buf = io.BytesIO()
+            fig.savefig(buf, format="png", bbox_inches="tight", dpi=150)
+            buf.seek(0)
+
+            # Convert to PIL Image and then to tensor
+            pil_img = Image.open(buf)
+            to_tensor = transforms.ToTensor()
+            img_tensor = to_tensor(pil_img)
+
+            # Log to TensorBoard with mode-specific tag
+            if hasattr(self.logger, "experiment"):
+                self.logger.experiment.add_image(
+                    f"{mode}_predictions", img_tensor, global_step=step
+                )
+
+            # Close the figure and buffer
+            plt.close(fig)
+            buf.close()
+
+            self.print(f"Logged {mode} visualization to TensorBoard at step {step}")
+
+        except Exception as e:
+            self.print(f"Failed to generate {mode} visualization: {e}")
+            traceback.print_exc()
 
     def configure_optimizers(self):
         # Separate parameter groups for backbone and other components
@@ -256,6 +382,9 @@ class ChessDataModule(pl.LightningDataModule):
 
 
 def train(args):
+    # Log output directory.
+    print(f"Output directory: {args.output_dir}")
+
     # Data module
     data_module = ChessDataModule(
         dataset_root=args.dataset_root,
@@ -280,6 +409,7 @@ def train(args):
         weight_decay=args.weight_decay,
         warmup_iters=args.warmup_iters,
         max_iters=max_iters,
+        visualize_every_n_steps=args.visualize_every_n_steps,
     )
 
     # Callbacks
@@ -367,6 +497,12 @@ def main():
     parser.add_argument("--accelerator", default="auto", help="Accelerator type")
     parser.add_argument("--devices", default="auto", help="Number of devices")
     parser.add_argument("--strategy", default="auto", help="Training strategy")
+    parser.add_argument(
+        "--visualize_every_n_steps",
+        type=int,
+        default=150,
+        help="Generate validation predictions visualization every N training steps",
+    )
 
     args = parser.parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
