@@ -1,3 +1,4 @@
 chess_env
 datasets/chessred
 experiments
+*.pyc
