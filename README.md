@@ -1,14 +1,14 @@
 # CheckMateVision - Chess Piece Detection with Deformable DETR
 
-A PyTorch Lightning implementation for training Deformable DETR to detect chess pieces on the ChessReD2k dataset. This project achieves **53.4% mAP** and **73.1% mAP@50** for accurate chess piece detection across 12 piece classes.
+A PyTorch Lightning implementation for training Deformable DETR to detect chess pieces on the ChessReD2k dataset. Early experiments achieve **54.9% mAP** and **74.2% mAP@50** for accurate chess piece detection across 12 piece classes.
 
 ## 🏆 Performance Summary
 
-After 80 epochs of training on ChessReD2k dataset:
-- **mAP (0.50:0.95)**: 53.4%
-- **mAP@50**: 73.1% 
-- **mAP@75**: 67.6%
-- **Average Recall@100**: 62.1%
+Metrics over test set of 77 images:
+- **mAP (0.50:0.95)**: 54.97%
+- **mAP@50**: 74.22%
+- **mAP@75**: 69.97%
+- **Average Recall@100**: 63.91%
 
 These metrics demonstrate strong performance for chess piece detection, with the model effectively distinguishing between all 12 piece types (6 piece types × 2 colors).
 
@@ -174,8 +174,6 @@ CheckMateVision/
 ### 1. Digital Chess Board Rendering
 - [ ] Implement board state reconstruction from detected pieces
 - [ ] Generate digital chess board visualization
-- [ ] FEN (Forsyth-Edwards Notation) string generation
-- [ ] Integration with chess engines for game analysis
 
 ### 2. Scale Up Training
 - [ ] Train with larger image resolution (512×512 or 800×1333)
@@ -186,26 +184,33 @@ CheckMateVision/
 ### 3. Advanced Model Architectures
 - [ ] Replace ResNet-50 backbone with DINOv2 for improved feature extraction
 - [ ] Experiment with DETR-based variants (RT-DETR, DETA)
-- [ ] Knowledge distillation from larger models
-- [ ] Test Vision Transformer backbones
 
-### 4. Production Enhancements
-- [ ] Model quantization and optimization for deployment
-- [ ] ONNX export for cross-platform inference
-- [ ] Real-time inference pipeline
-- [ ] Mobile deployment optimization
 
 ## 📊 Detailed Results
 
 ```
-COCO Evaluation Results (80 epochs):
-Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.534
-Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.731
-Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.676
-Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.534
-Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.442
-Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.620
-Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.621
+Dataset: datasets/chessred
+Confidence Threshold: 0.05
+Test Images: 306
+Total Predictions: 9792
+Evaluation Time: 11.84 seconds
+--------------------------------------------------------------------------------
+COCO Metrics:
+  mAP (IoU=0.50:0.95): 0.5497
+  mAP@50 (IoU=0.50)  : 0.7422
+  mAP@75 (IoU=0.75)  : 0.6997
+  mAP (small)        : 0.5497
+  mAP (medium)       : -1.0000
+  mAP (large)        : -1.0000
+----------------------------------------
+Average Recall:
+  AR@1               : 0.4449
+  AR@10              : 0.6390
+  AR@100             : 0.6391
+  AR (small)         : 0.6391
+  AR (medium)        : -1.0000
+  AR (large)         : -1.0000
+
 ```
 
 ## 🛠️ Advanced Usage
@@ -253,8 +258,4 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## 🙏 Acknowledgments
-
-- [ChessReD Dataset](https://doi.org/10.4121/99b5c721-280b-450b-b058-b2900b69a90f.v2) for providing high-quality chess piece annotations
-- [HuggingFace Transformers](https://huggingface.co/transformers/) for the Deformable DETR implementation
-- [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) for the training framework
-- [Albumentations](https://albumentations.ai/) for data augmentation utilities
+- [ChessReD Dataset](https://doi.org/10.4121/99b5c721-280b-450b-b058-b2900b69a90f.v2) for providing high-quality chess piece annotations. References were also taken from the github repository. [Link](https://github.com/tmasouris/end-to-end-chess-recognition/tree/main) 
