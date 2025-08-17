@@ -77,9 +77,10 @@ def convert_detr_predictions_to_coco(
 class ChessPiecesDataset(Dataset):
     """ChessPiecesDataset for loading chess piece annotations in COCO format. It only loads from the chessred2k dataset which have bbox annotations."""
 
-    def __init__(self, dataset_root_dir: str, split: str):
+    def __init__(self, dataset_root_dir: str, split: str, max_samples: int = None):
         self.root = dataset_root_dir
         self.split = split
+        self.max_samples = max_samples
 
         # Load the annotation file.
         annotation_file_path = os.path.join(self.root, "annotations.json")
@@ -103,6 +104,14 @@ class ChessPiecesDataset(Dataset):
         # Only use chessred2k split as they have bbox annotations.
         self.length = annotations["splits"]["chessred2k"][split]["n_samples"]
         self.split_img_ids = annotations["splits"]["chessred2k"][split]["image_ids"]
+
+        # Apply max_samples limit if specified
+        if self.max_samples is not None and self.max_samples > 0:
+            self.split_img_ids = self.split_img_ids[: self.max_samples]
+            self.length = min(self.length, self.max_samples)
+            logger.info(
+                f"Limited dataset to {self.max_samples} samples for split {split}"
+            )
 
         self.annotations = self.annotations[
             self.annotations["image_id"].isin(self.split_img_ids)

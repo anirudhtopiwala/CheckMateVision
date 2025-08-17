@@ -20,6 +20,11 @@ from visualization_utils import (
     setup_matplotlib_backend,
     visualize_single_image_prediction,
 )
+from validation_utils import (
+    compute_validation_metrics,
+    log_metrics_to_tensorboard,
+    aggregate_predictions_and_targets,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +52,10 @@ class DeformableDetrLightning(pl.LightningModule):
 
         # Visualization parameters
         self.visualize_every_n_steps = visualize_every_n_steps
-        self.visualization_confidence_threshold = (
-            0.1  # Confidence threshold for visualizations
-        )
+        self.visualization_confidence_threshold = 0.1
+
+        # Validation step counter to track validation steps across epochs
+        self.validation_step_count = 0
 
         # Build model with updated queries and num_classes
         if pretrained:
@@ -167,16 +173,21 @@ class DeformableDetrLightning(pl.LightningModule):
             sync_dist=True,
         )
 
-        # Trigger visualization every N steps for validation data (only for first batch)
-        if batch_idx % self.visualize_every_n_steps == 0:
+        # Trigger visualization every N validation batches (only for first batch)
+        if (
+            self.validation_step_count + 1
+        ) % self.visualize_every_n_steps == 0:
             self.visualize_predictions(
                 images=images,
                 targets=targets,
                 pixel_masks=pixel_masks,
                 batch_idx=0,
-                step=batch_idx,
+                step=self.validation_step_count,
                 mode="val",
             )
+
+        # Increment validation step counter
+        self.validation_step_count += 1
 
         # Store predictions for epoch-end evaluation
         logits = outputs.logits
@@ -208,21 +219,46 @@ class DeformableDetrLightning(pl.LightningModule):
         return step_output
 
     def on_validation_epoch_end(self):
-        # Collect all predictions and compute mAP
-        all_predictions = []
-        for output in self.validation_step_outputs:
-            all_predictions.extend(output["predictions"])
+        # Aggregate all predictions and targets
+        all_predictions, all_targets = aggregate_predictions_and_targets(
+            self.validation_step_outputs
+        )
 
         if len(all_predictions) == 0:
-            self.log("val_mAP", 0.0)
-            self.log("val_mAP50", 0.0)
+            # Log zero metrics if no predictions
+            metrics = {
+                "val_mAP": 0.0,
+                "val_mAP50": 0.0,
+                "val_mAP75": 0.0,
+                "val_AR_100": 0.0,
+            }
+            for metric_name, metric_value in metrics.items():
+                self.log(metric_name, metric_value, sync_dist=True)
         else:
-            # For simplicity, log number of predictions
-            # In practice, you'd use pycocotools here for proper mAP calculation
-            self.log("val_predictions", len(all_predictions))
-            # Placeholder metrics - implement proper COCO evaluation if needed
-            self.log("val_mAP", 0.5)  # Placeholder
-            self.log("val_mAP50", 0.6)  # Placeholder
+            # Get category map from the dataset
+            category_map = self.trainer.datamodule.val_dataset.get_categories()
+
+            # Compute COCO metrics
+            metrics = compute_validation_metrics(
+                all_predictions, all_targets, category_map
+            )
+
+            # Log main metrics to Lightning
+            self.log("val_mAP", metrics["mAP"], sync_dist=True, prog_bar=True)
+            self.log("val_mAP50", metrics["mAP50"], sync_dist=True, prog_bar=True)
+            self.log("val_mAP75", metrics["mAP75"], sync_dist=True)
+            self.log("val_AR_100", metrics["AR_100"], sync_dist=True)
+
+            # Log all metrics to TensorBoard
+            if hasattr(self.logger, "experiment"):
+                log_metrics_to_tensorboard(
+                    metrics, self.logger, global_step=self.global_step, prefix="val"
+                )
+
+            # Log summary
+            self.print(
+                f"Validation Metrics - mAP: {metrics['mAP']:.4f}, mAP50: {metrics['mAP50']:.4f}"
+            )
 
         # Clear the outputs for next epoch
         self.validation_step_outputs.clear()
