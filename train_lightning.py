@@ -115,7 +115,7 @@ class DeformableDetrLightning(pl.LightningModule):
         loss = outputs.loss
 
         self.log(
-            "train_loss",
+            "loss/train",
             loss,
             on_step=True,
             on_epoch=True,
@@ -159,7 +159,7 @@ class DeformableDetrLightning(pl.LightningModule):
         # Compute and log validation loss
         val_loss = outputs.loss
         self.log(
-            "val_loss",
+            "loss/val",
             val_loss,
             on_step=False,
             on_epoch=True,
@@ -444,13 +444,23 @@ def train(args):
     )
 
     # Callbacks
-    checkpoint_callback = ModelCheckpoint(
+    # Save best checkpoint based on validation mAP
+    best_checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(args.output_dir, "checkpoints"),
         filename="best-{epoch:02d}-{val_mAP50:.3f}",
         monitor="val_mAP50",
         mode="max",
         save_top_k=1,
         save_last=True,
+    )
+
+    # Save checkpoint at the end of every epoch
+    epoch_checkpoint_callback = ModelCheckpoint(
+        dirpath=os.path.join(args.output_dir, "checkpoints", "epochs"),
+        filename="epoch-{epoch:02d}-{loss/val:.4f}",
+        save_top_k=-1,
+        every_n_epochs=10,
+        save_last=False,
     )
 
     lr_monitor = LearningRateMonitor(logging_interval="step")
@@ -469,7 +479,7 @@ def train(args):
         strategy=args.strategy,
         precision=args.precision,
         logger=tensorboard_logger,
-        callbacks=[checkpoint_callback, lr_monitor],
+        callbacks=[best_checkpoint_callback, epoch_checkpoint_callback, lr_monitor],
         log_every_n_steps=10,
         val_check_interval=1.0,
         enable_checkpointing=True,
@@ -484,7 +494,10 @@ def train(args):
         ckpt_path=args.resume_from_checkpoint,
     )
 
-    print(f"Best checkpoint saved at: {checkpoint_callback.best_model_path}")
+    print(f"Best checkpoint saved at: {best_checkpoint_callback.best_model_path}")
+    print(
+        f"Epoch checkpoints saved in: {os.path.join(args.output_dir, 'checkpoints', 'epochs')}"
+    )
 
 
 def main():
