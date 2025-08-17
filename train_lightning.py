@@ -570,7 +570,7 @@ def main():
     )
     parser.add_argument(
         "--precision",
-        default="16-mixed",
+        default="bf16-mixed",
         choices=["32", "16-mixed", "bf16-mixed"],
         help="Training precision",
     )
