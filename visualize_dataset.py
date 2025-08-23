@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from dataset import ChessPiecesDataset
-from visualization_utils import setup_matplotlib_backend, draw_bbox
+from visualization_utils import draw_bbox, setup_matplotlib_backend
 
 random.seed(42)  # For reproducibility
 import logging
@@ -41,6 +41,12 @@ def main():
         default="val",
         help="Split to visualize.",
     )
+    parser.add_argument(
+        "--image_size",
+        type=int,
+        default=256,
+        help="Image size for visualization (square images)",
+    )
     args = parser.parse_args()
 
     # Setup matplotlib backend
@@ -49,7 +55,9 @@ def main():
     else:
         setup_matplotlib_backend("TkAgg")  # Interactive for display
 
-    ds = ChessPiecesDataset(dataset_root_dir=args.images_root, split=args.split)
+    ds = ChessPiecesDataset(
+        dataset_root_dir=args.images_root, split=args.split, image_size=args.image_size
+    )
     indices = random.sample(range(len(ds)), k=args.n)
 
     images = []

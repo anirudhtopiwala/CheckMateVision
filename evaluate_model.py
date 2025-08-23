@@ -12,19 +12,20 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
-import torch
-import pytorch_lightning as pl
 import matplotlib.pyplot as plt
 import numpy as np
+import pytorch_lightning as pl
+import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from train_lightning import DeformableDetrLightning, ChessDataModule
-from dataset import ChessPiecesDataset, collate_fn, convert_detr_predictions_to_coco
-from validation_utils import compute_validation_metrics, COCOEvaluator
-from visualization_utils import setup_matplotlib_backend, draw_bbox
+from dataset import (ChessPiecesDataset, collate_fn,
+                     convert_detr_predictions_to_coco)
+from train_lightning import ChessDataModule, DeformableDetrLightning
+from validation_utils import COCOEvaluator, compute_validation_metrics
+from visualization_utils import draw_bbox, setup_matplotlib_backend
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class ModelEvaluator:
         dataset_root: str,
         batch_size: int = 4,
         num_workers: int = 8,
+        image_size: int = 256,
     ):
         """
         Initialize model evaluator.
@@ -47,12 +49,14 @@ class ModelEvaluator:
             dataset_root: Root directory of the dataset
             batch_size: Batch size for evaluation
             num_workers: Number of workers for data loading
+            image_size: Image size for evaluation
             device: Device to run evaluation on
         """
         self.checkpoint_path = checkpoint_path
         self.dataset_root = dataset_root
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.image_size = image_size
 
         # Set device
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -93,6 +97,7 @@ class ModelEvaluator:
             dataset_root=self.dataset_root,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
+            image_size=self.image_size,
         )
 
         # Setup data (this creates train/val/test datasets)
@@ -420,6 +425,12 @@ def main():
         "--num_workers", type=int, default=8, help="Number of workers for data loading"
     )
     parser.add_argument(
+        "--image_size",
+        type=int,
+        default=256,
+        help="Image size for evaluation (square images)",
+    )
+    parser.add_argument(
         "--confidence_threshold",
         type=float,
         default=0.3,
@@ -456,6 +467,7 @@ def main():
             dataset_root=args.dataset_root,
             batch_size=args.batch_size,
             num_workers=args.num_workers,
+            image_size=args.image_size,
         )
 
         # Run evaluation

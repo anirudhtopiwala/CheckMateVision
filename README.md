@@ -2,9 +2,12 @@
 
 A PyTorch Lightning implementation for training Deformable DETR to detect chess pieces on the ChessReD2k dataset. Early experiments achieve **54.9% mAP** and **74.2% mAP@50** for accurate chess piece detection across 12 piece classes.
 
+## Motivation 
+
+
 ## 🏆 Performance Summary
 
-Metrics over test set of 77 images:
+Metrics over test set of 306 images:
 - **mAP (0.50:0.95)**: 54.97%
 - **mAP@50**: 74.22%
 - **mAP@75**: 69.97%
@@ -66,13 +69,15 @@ python train_lightning.py \
     --dataset_root datasets/chessred \
     --epochs 80 \
     --batch_size 2 \
+    --image_size 256 \
     --output_dir experiments/chess_detection
 
-# Multi-GPU training
+# Multi-GPU training with larger image size
 python train_lightning.py \
     --dataset_root datasets/chessred \
     --epochs 80 \
     --batch_size 4 \
+    --image_size 512 \
     --devices 2 \
     --strategy ddp \
     --output_dir experiments/chess_detection_multi_gpu

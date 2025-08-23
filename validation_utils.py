@@ -3,13 +3,13 @@ Validation utilities for COCO-style evaluation using pycocotools.
 """
 
 import json
-import tempfile
-from typing import Dict, List, Any, Tuple
 import logging
+import tempfile
+from typing import Any, Dict, List, Tuple
 
+import numpy as np
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
-import numpy as np
 
 logger = logging.getLogger(__name__)
 

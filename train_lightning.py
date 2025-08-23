@@ -15,16 +15,13 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 from transformers import DeformableDetrConfig, DeformableDetrForObjectDetection
 
-from dataset import ChessPiecesDataset, collate_fn, convert_detr_predictions_to_coco
-from visualization_utils import (
-    setup_matplotlib_backend,
-    visualize_single_image_prediction,
-)
-from validation_utils import (
-    compute_validation_metrics,
-    log_metrics_to_tensorboard,
-    aggregate_predictions_and_targets,
-)
+from dataset import (ChessPiecesDataset, collate_fn,
+                     convert_detr_predictions_to_coco)
+from validation_utils import (aggregate_predictions_and_targets,
+                              compute_validation_metrics,
+                              log_metrics_to_tensorboard)
+from visualization_utils import (setup_matplotlib_backend,
+                                 visualize_single_image_prediction)
 
 logger = logging.getLogger(__name__)
 
@@ -174,9 +171,7 @@ class DeformableDetrLightning(pl.LightningModule):
         )
 
         # Trigger visualization every N validation batches (only for first batch)
-        if (
-            self.validation_step_count + 1
-        ) % self.visualize_every_n_steps == 0:
+        if (self.validation_step_count + 1) % self.visualize_every_n_steps == 0:
             self.visualize_predictions(
                 images=images,
                 targets=targets,
@@ -396,24 +391,32 @@ class ChessDataModule(pl.LightningDataModule):
         dataset_root: str,
         batch_size: int = 2,
         num_workers: int = 8,
+        image_size: int = 256,
     ):
         super().__init__()
         self.dataset_root = dataset_root
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.image_size = image_size
 
     def setup(self, stage=None):
         if stage == "fit" or stage is None:
             self.train_dataset = ChessPiecesDataset(
-                dataset_root_dir=self.dataset_root, split="train"
+                dataset_root_dir=self.dataset_root,
+                split="train",
+                image_size=self.image_size,
             )
             self.val_dataset = ChessPiecesDataset(
-                dataset_root_dir=self.dataset_root, split="val"
+                dataset_root_dir=self.dataset_root,
+                split="val",
+                image_size=self.image_size,
             )
 
         if stage == "test" or stage is None:
             self.test_dataset = ChessPiecesDataset(
-                dataset_root_dir=self.dataset_root, split="test"
+                dataset_root_dir=self.dataset_root,
+                split="test",
+                image_size=self.image_size,
             )
 
     def train_dataloader(self) -> DataLoader:
@@ -457,6 +460,7 @@ def train(args):
         dataset_root=args.dataset_root,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
+        image_size=args.image_size,
     )
 
     # Calculate max iterations for scheduler
@@ -545,6 +549,12 @@ def main():
     )
     parser.add_argument("--epochs", type=int, default=5, help="Number of epochs")
     parser.add_argument("--batch_size", type=int, default=2, help="Batch size per GPU")
+    parser.add_argument(
+        "--image_size",
+        type=int,
+        default=256,
+        help="Image size for training (square images)",
+    )
     parser.add_argument(
         "--lr_backbone", type=float, default=1e-5, help="Backbone learning rate"
     )

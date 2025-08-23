@@ -77,10 +77,17 @@ def convert_detr_predictions_to_coco(
 class ChessPiecesDataset(Dataset):
     """ChessPiecesDataset for loading chess piece annotations in COCO format. It only loads from the chessred2k dataset which have bbox annotations."""
 
-    def __init__(self, dataset_root_dir: str, split: str, max_samples: int = None):
+    def __init__(
+        self,
+        dataset_root_dir: str,
+        split: str,
+        max_samples: int = None,
+        image_size: int = 256,
+    ):
         self.root = dataset_root_dir
         self.split = split
         self.max_samples = max_samples
+        self.image_size = image_size
 
         # Load the annotation file.
         annotation_file_path = os.path.join(self.root, "annotations.json")
@@ -121,7 +128,7 @@ class ChessPiecesDataset(Dataset):
         assert self.length == len(self.split_img_ids) and self.length == len(
             self.images
         ), (
-            f"The numeber of images in "
+            f"The number of images in "
             f"the dataset ({len(self.images)}) for split:{self.split}, does "
             f"not match neither the length specified in the annotations "
             f"({self.length}) or the length of the list of ids for the split "
@@ -136,9 +143,9 @@ class ChessPiecesDataset(Dataset):
             mean=self.mean.tolist(), std=self.std.tolist()
         )
 
-        # Deformable DETR expects: shortest_edge=800, longest_edge=1333
-        self.shortest_edge = 256
-        self.longest_edge = 256
+        # Use configurable image size (can be square or maintain aspect ratio)
+        self.shortest_edge = self.image_size
+        self.longest_edge = self.image_size
 
         # Data augmentations for training
         self.is_train = split == "train"

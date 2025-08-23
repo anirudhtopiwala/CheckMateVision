@@ -5,7 +5,7 @@ This module provides utilities for visualizing bounding boxes on images,
 supporting both ground truth annotations and model predictions.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt

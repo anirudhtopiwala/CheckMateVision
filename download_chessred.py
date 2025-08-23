@@ -4,10 +4,11 @@ This script downloads the dataset from 4TU.ResearchData using direct HTTP links 
 
 import os
 import zipfile
+from pathlib import Path
+
+import click
 import wget
 import yaml
-from pathlib import Path
-import click
 
 
 def progress_bar(current: int, total: int, width: int = 80, name: str = "") -> None:
