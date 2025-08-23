@@ -3,25 +3,32 @@
 A PyTorch Lightning implementation for training Deformable DETR to detect chess pieces on the ChessReD2k dataset. Early experiments achieve **54.9% mAP** and **74.2% mAP@50** for accurate chess piece detection across 12 piece classes.
 
 ## Motivation 
+Being able to render a digital chess board from an image of a physical chess board has multiple applications in online chess streaming, game analysis, and augmented reality. This project is part of a bigger project to have a a robotic arm play chess against a human opponent. The first step is to accurately detect the chess pieces on the board.
+
+Existing approaches for chess piece detection often rely on traditional computer vision techniques or simpler deep learning models. [Chesscog](https://github.com/georg-wolflein/chesscog?tab=readme-ov-file) for example uses a combination of image processing and a CNN classifier to identify pieces. These fail to generalize across different views. [ChessReD](https://github.com/tmasouris/end-to-end-chess-recognition/tree/main) proposes an end-to-end pipeline using ResNext backbone and and provides a high quality dataset with bounding box annotations for chess pieces. The paper indicates not having success with DETR because of small bounding box predictions, and therefore this project aims to explore the performance of Deformable DETR on this task. 
 
 
 ## 🏆 Performance Summary
-
-Metrics over test set of 306 images:
+Metrics over test set of 306 images or chess boards:
 - **mAP (0.50:0.95)**: 54.97%
 - **mAP@50**: 74.22%
 - **mAP@75**: 69.97%
 - **Average Recall@100**: 63.91%
+- **Boards with 0 mistakes**: 8.2%
+- **Boards with ≤1 mistake**: 25.8%
+- **Average mistakes per board**: 4.25
 
 These metrics demonstrate strong performance for chess piece detection, with the model effectively distinguishing between all 12 piece types (6 piece types × 2 colors).
 
-## 📊 Key Features
+The below table compares the performance of this Deformable DETR model with Chesscog and ChessReD's model. 
 
-- **Modern Architecture**: Deformable DETR with ResNet-50 backbone from HuggingFace Transformers
-- **Efficient Training**: PyTorch Lightning with mixed precision (bf16) and multi-GPU support
-- **Comprehensive Monitoring**: TensorBoard integration with loss tracking and prediction visualizations
-- **Robust Data Pipeline**: Albumentations-based augmentations with COCO-format annotations
-- **Production Ready**: Model checkpointing, validation metrics, and inference utilities
+(*The paper aggregates the metrics across the entire test set. However, the Deformable DETR metrics are calculated for the test set under ChessReD2k which has bbox annotations for all pieces.*)
+
+| Metric | Chesscog | ResNeXt | Deformable DETR |
+|--------|----------|---------|------------------|
+| Mean incorrect squares per board | 42.87 | 3.40 | 4.25 |
+| Boards with no mistakes (%) | 2.30% | 15.26% | 8.20% | 
+| Boards with ≤ 1 mistake (%) | 7.79% | 25.92% | 25.80% |
 
 ## 🚀 Quick Start
 
@@ -95,10 +102,7 @@ python train_lightning.py \
 Training progress is automatically logged to TensorBoard:
 
 ```bash
-# Launch TensorBoard
 tensorboard --logdir experiments/chess_detection
-
-# View in browser at http://localhost:6006
 ```
 
 **TensorBoard includes:**
@@ -107,8 +111,6 @@ tensorboard --logdir experiments/chess_detection
 - Validation metrics (mAP, mAP50, mAP75, AR)
 - Prediction visualizations with bounding boxes
 - Model graph and hyperparameters
-
-*[Placeholder for TensorBoard screenshots]*
 
 ### 5. Evaluation
 
@@ -121,26 +123,8 @@ python evaluate_model.py \
     --batch_size 4
 ```
 
-**Evaluation Metrics:**
-- COCO-style Average Precision (AP) at multiple IoU thresholds
-- Per-class precision and recall
-- Confusion matrix for piece type classification
-- Detection visualization on test images
+Metrics include mAP, mAP@50, mAP@75, Average Recall, and board-level mistake analysis.
 
-## 📁 Project Structure
-
-```
-CheckMateVision/
-├── train_lightning.py       # Main training script with PyTorch Lightning
-├── dataset.py              # ChessPiecesDataset and data utilities
-├── validation_utils.py     # COCO evaluation and metrics computation
-├── visualization_utils.py  # Prediction visualization tools
-├── evaluate_model.py       # Model evaluation script
-├── download_chessred.py    # Dataset download utility
-├── requirements.txt        # Python dependencies
-└── datasets/              # Dataset storage
-    └── chessred/         # ChessReD2k dataset
-```
 
 ## 🎯 Model Architecture
 
@@ -152,27 +136,6 @@ CheckMateVision/
   - Black: Pawn, Knight, Bishop, Rook, Queen, King
 - **Input Resolution**: 256×256 pixels
 - **Output Format**: Normalized center coordinates (cx, cy, w, h)
-
-## 📈 Training Details
-
-**Data Augmentation Strategy:**
-- Random rotation (±10°)
-- Random scaling (±10%)
-- Color jitter (brightness, contrast, saturation, hue)
-- Gaussian noise
-- Horizontal flip
-- Aspect ratio preserving resize
-
-**Loss Function:**
-- Bipartite matching loss (Hungarian algorithm)
-- Classification loss (focal loss)
-- Bounding box regression loss (L1 + GIoU)
-
-**Optimization:**
-- Differential learning rates (backbone vs. transformer)
-- Cosine annealing with linear warmup
-- Gradient clipping for stability
-- Mixed precision training (bf16)
 
 ## 🔮 Next Steps
 
@@ -194,28 +157,38 @@ CheckMateVision/
 ## 📊 Detailed Results
 
 ```
+EVALUATION RESULTS
+================================================================================
+Checkpoint: CheckMateVision/experiments/20250816_235942/checkpoints/best-epoch=89-val_mAP50=0.740.ckpt
 Dataset: datasets/chessred
-Confidence Threshold: 0.05
+Confidence Threshold: 0.3
 Test Images: 306
-Total Predictions: 9792
-Evaluation Time: 11.84 seconds
+Total Predictions: 8212
+Evaluation Time: 11.76 seconds
 --------------------------------------------------------------------------------
 COCO Metrics:
-  mAP (IoU=0.50:0.95): 0.5497
-  mAP@50 (IoU=0.50)  : 0.7422
-  mAP@75 (IoU=0.75)  : 0.6997
-  mAP (small)        : 0.5497
+  mAP (IoU=0.50:0.95): 0.5422
+  mAP@50 (IoU=0.50)  : 0.7319
+  mAP@75 (IoU=0.75)  : 0.6908
+  mAP (small)        : 0.5422
   mAP (medium)       : -1.0000
   mAP (large)        : -1.0000
 ----------------------------------------
 Average Recall:
-  AR@1               : 0.4449
-  AR@10              : 0.6390
-  AR@100             : 0.6391
-  AR (small)         : 0.6391
+  AR@1               : 0.4396
+  AR@10              : 0.6256
+  AR@100             : 0.6257
+  AR (small)         : 0.6257
   AR (medium)        : -1.0000
   AR (large)         : -1.0000
-
+----------------------------------------
+Board-level Metrics:
+  Boards with 0 mistakes      : 8.2%
+  Boards with ≤1 mistake      : 25.8%
+  Average mistakes per board   : 4.25
+  Total boards analyzed        : 306
+  Total mistakes detected      : 1299
+================================================================================
 ```
 
 ## 🛠️ Advanced Usage
