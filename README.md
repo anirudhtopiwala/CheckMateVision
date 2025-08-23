@@ -30,6 +30,9 @@ The below table compares the performance of this Deformable DETR model with Ches
 | Boards with no mistakes (%) | 2.30% | 15.26% | 8.20% | 
 | Boards with ≤ 1 mistake (%) | 7.79% | 25.92% | 25.80% |
 
+Examples of model predictions on test images:
+![Model Predictions](assets/eval_test_set.gif)
+
 ## 🚀 Quick Start
 
 ### 1. Setup Environment
