@@ -15,13 +15,16 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 from transformers import DeformableDetrConfig, DeformableDetrForObjectDetection
 
-from dataset import (ChessPiecesDataset, collate_fn,
-                     convert_detr_predictions_to_coco)
-from validation_utils import (aggregate_predictions_and_targets,
-                              compute_validation_metrics,
-                              log_metrics_to_tensorboard)
-from visualization_utils import (setup_matplotlib_backend,
-                                 visualize_single_image_prediction)
+from dataset import ChessPiecesDataset, collate_fn, convert_detr_predictions_to_coco
+from validation_utils import (
+    aggregate_predictions_and_targets,
+    compute_validation_metrics,
+    log_metrics_to_tensorboard,
+)
+from visualization_utils import (
+    setup_matplotlib_backend,
+    visualize_single_image_prediction,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -226,9 +229,15 @@ class DeformableDetrLightning(pl.LightningModule):
                 "val_mAP50": 0.0,
                 "val_mAP75": 0.0,
                 "val_AR_100": 0.0,
+                "boards_0_mistakes_pct": 0.0,
+                "boards_1_or_fewer_mistakes_pct": 0.0,
+                "avg_mistakes_per_board": 0.0,
             }
             for metric_name, metric_value in metrics.items():
-                self.log(metric_name, metric_value, sync_dist=True)
+                if metric_name.startswith("val_"):
+                    self.log(metric_name, metric_value, sync_dist=True)
+                else:
+                    self.log(f"val_{metric_name}", metric_value, sync_dist=True)
         else:
             # Get category map from the dataset
             category_map = self.trainer.datamodule.val_dataset.get_categories()
@@ -244,6 +253,25 @@ class DeformableDetrLightning(pl.LightningModule):
             self.log("val_mAP75", metrics["mAP75"], sync_dist=True)
             self.log("val_AR_100", metrics["AR_100"], sync_dist=True)
 
+            # Log board-level mistake metrics
+            self.log(
+                "val_boards_0_mistakes_pct",
+                metrics["boards_0_mistakes_pct"],
+                sync_dist=True,
+                prog_bar=True,
+            )
+            self.log(
+                "val_boards_1_or_fewer_mistakes_pct",
+                metrics["boards_1_or_fewer_mistakes_pct"],
+                sync_dist=True,
+                prog_bar=True,
+            )
+            self.log(
+                "val_avg_mistakes_per_board",
+                metrics["avg_mistakes_per_board"],
+                sync_dist=True,
+            )
+
             # Log all metrics to TensorBoard
             if hasattr(self.logger, "experiment"):
                 log_metrics_to_tensorboard(
@@ -253,6 +281,11 @@ class DeformableDetrLightning(pl.LightningModule):
             # Log summary
             self.print(
                 f"Validation Metrics - mAP: {metrics['mAP']:.4f}, mAP50: {metrics['mAP50']:.4f}"
+            )
+            self.print(
+                f"Board-level Metrics - 0 mistakes: {metrics['boards_0_mistakes_pct']:.1f}%, "
+                f"≤1 mistake: {metrics['boards_1_or_fewer_mistakes_pct']:.1f}%, "
+                f"avg mistakes/board: {metrics['avg_mistakes_per_board']:.2f}"
             )
 
         # Clear the outputs for next epoch

@@ -16,15 +16,12 @@ from typing import Any, Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pytorch_lightning as pl
 import torch
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from dataset import (ChessPiecesDataset, collate_fn,
-                     convert_detr_predictions_to_coco)
+from dataset import convert_detr_predictions_to_coco
 from train_lightning import ChessDataModule, DeformableDetrLightning
-from validation_utils import COCOEvaluator, compute_validation_metrics
+from validation_utils import compute_validation_metrics
 from visualization_utils import draw_bbox, setup_matplotlib_backend
 
 logger = logging.getLogger(__name__)
@@ -487,6 +484,10 @@ def main():
                 print(f"  mAP@75  : {metrics['mAP75']:.4f}")
                 print(f"  AR@100  : {metrics['AR_100']:.4f}")
                 print(f"  Predictions: {metrics['total_predictions']}")
+                print(f"  Boards 0 mistakes: {metrics['boards_0_mistakes_pct']:.1f}%")
+                print(
+                    f"  Boards ≤1 mistake: {metrics['boards_1_or_fewer_mistakes_pct']:.1f}%"
+                )
 
         else:
             results = evaluator.evaluate(
@@ -521,6 +522,19 @@ def main():
             print(f"  AR (small)         : {results['AR_small']:.4f}")
             print(f"  AR (medium)        : {results['AR_medium']:.4f}")
             print(f"  AR (large)         : {results['AR_large']:.4f}")
+            print("-" * 40)
+            print("Board-level Metrics:")
+            print(
+                f"  Boards with 0 mistakes      : {results['boards_0_mistakes_pct']:.1f}%"
+            )
+            print(
+                f"  Boards with ≤1 mistake      : {results['boards_1_or_fewer_mistakes_pct']:.1f}%"
+            )
+            print(
+                f"  Average mistakes per board   : {results['avg_mistakes_per_board']:.2f}"
+            )
+            print(f"  Total boards analyzed        : {results['total_boards']}")
+            print(f"  Total mistakes detected      : {results['total_mistakes']}")
             print("=" * 80)
 
         # Save results to file if specified
