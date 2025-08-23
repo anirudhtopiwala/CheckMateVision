@@ -2,3 +2,4 @@ chess_env
 datasets/chessred
 experiments
 *.pyc
+evaluation_results
